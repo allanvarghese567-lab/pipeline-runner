@@ -1,0 +1,64 @@
+# Pipeline Runner — dispatches builds to the reusable secure pipeline
+# in allanvarghese567-lab/pipeline-templates (pinned to tag v1).
+#
+# Required setup (see README / notes below):
+#   - Repo variable ALLOWED_OWNERS (comma-separated owners)
+#   - Repo secret CROSS_REPO_TOKEN (fine-grained PAT / GitHub App token)
+#   - Tag pipeline-templates as v1
+#   - For private templates repo: enable cross-repo workflow access
+#   - Add required reviewers on staging & prod Environments
+
+name: Pipeline Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: "Target repository (owner/name)"
+        type: string
+        required: true
+      branch:
+        description: "Branch to build"
+        type: string
+        required: true
+        default: "main"
+      environment:
+        description: "Deploy environment"
+        type: choice
+        options:
+          - none
+          - dev
+          - staging
+          - prod
+        default: "none"
+        required: true
+      build_type:
+        description: "Build system"
+        type: choice
+        options:
+          - npm
+          - python
+        default: "npm"
+        required: true
+
+# One concurrent run per target_repo + branch; cancel older runs
+concurrency:
+  group: ${{ github.event.inputs.target_repo }}-${{ github.event.inputs.branch }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  call-secure-pipeline:
+    name: Call Secure Pipeline
+    uses: allanvarghese567-lab/pipeline-templates/.github/workflows/secure-pipeline.yml@v1
+    with:
+      target_repo: ${{ inputs.target_repo }}
+      branch: ${{ inputs.branch }}
+      environment: ${{ inputs.environment }}
+      build_type: ${{ inputs.build_type }}
+      allowed_owners: ${{ vars.ALLOWED_OWNERS }}
+    secrets:
+      CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
